@@ -25,8 +25,8 @@ async fn main() {
         .with_state(pool)
         .layer(CorsLayer::permissive());
 
-    println!("Server running on http://localhost:3000");
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")
+    println!("Server running on http://localhost:3002");
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3002")
         .await
         .expect("failed to bind server");
     axum::serve(listener, app)
