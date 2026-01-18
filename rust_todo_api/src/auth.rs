@@ -1,6 +1,12 @@
-use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use argon2::password_hash::SaltString;
-use jsonwebtoken::{encode, EncodingKey, Header};
+use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
+use axum::{
+    body::Body,
+    http::{Request, StatusCode},
+    middleware::Next,
+    response::{IntoResponse, Response},
+};
+use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -11,7 +17,7 @@ pub struct Claims {
 }
 
 pub fn hash_password(password: &str) -> String {
-    let salt = SaltString::b64_encode(b"randomsalt").expect("invalid salt");
+    let salt = SaltString::encode_b64(b"randomsalt").expect("invalid salt");
     Argon2::default()
         .hash_password(password.as_bytes(), &salt)
         .expect("failed to hash password")
@@ -45,4 +51,46 @@ pub fn generate_jwt(user_id: Uuid) -> String {
         ),
     )
     .expect("failed to generate jwt")
+}
+
+pub async fn auth_middleware(mut req: Request<Body>, next: Next) -> Response {
+    let token = match extract_bearer_token(req.headers().get("authorization")) {
+        Some(token) => token,
+        None => return StatusCode::UNAUTHORIZED.into_response(),
+    };
+
+    let jwt_secret = match std::env::var("JWT_SECRET") {
+        Ok(secret) => secret,
+        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    };
+
+    let validation = Validation::default();
+    let token_data = match decode::<Claims>(
+        &token,
+        &DecodingKey::from_secret(jwt_secret.as_bytes()),
+        &validation,
+    ) {
+        Ok(data) => data,
+        Err(_) => return StatusCode::UNAUTHORIZED.into_response(),
+    };
+
+    let user_id = match Uuid::parse_str(&token_data.claims.sub) {
+        Ok(id) => id,
+        Err(_) => return StatusCode::UNAUTHORIZED.into_response(),
+    };
+
+    req.extensions_mut().insert(user_id);
+    next.run(req).await
+}
+
+fn extract_bearer_token(header_value: Option<&axum::http::HeaderValue>) -> Option<String> {
+    let value = header_value?.to_str().ok()?;
+    let mut parts = value.splitn(2, ' ');
+    let scheme = parts.next()?;
+    let token = parts.next()?;
+    if scheme.eq_ignore_ascii_case("bearer") {
+        Some(token.to_string())
+    } else {
+        None
+    }
 }

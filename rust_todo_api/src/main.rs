@@ -4,11 +4,13 @@ mod models;
 mod routes;
 
 use axum::{
-    routing::{get, post},
+    middleware,
+    routing::post,
     Router,
 };
 use tower_http::cors::CorsLayer;
 
+use crate::auth::auth_middleware;
 use crate::db::connect_db;
 use crate::routes::{create_todo, list_todos, login, register};
 
@@ -18,10 +20,14 @@ async fn main() {
 
     let pool = connect_db().await;
 
+    let protected_routes = Router::new()
+        .route("/", post(create_todo).get(list_todos))
+        .route_layer(middleware::from_fn(auth_middleware));
+
     let app = Router::new()
         .route("/register", post(register))
         .route("/login", post(login))
-        .route("/todos", post(create_todo).get(list_todos))
+        .nest("/todos", protected_routes)
         .with_state(pool)
         .layer(CorsLayer::permissive());
 
