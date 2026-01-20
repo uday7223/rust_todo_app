@@ -164,3 +164,14 @@ is not required.
 - Add input validation (email format, password length)
 - Add refresh tokens
 - Use SQLx migrations and `sqlx::migrate!`
+
+## Swagger UI
+
+After starting the server, open:
+
+```
+http://localhost:3002/docs
+```
+
+This shows the full OpenAPI spec, lets you try requests, and includes the
+`Authorization: Bearer <token>` header for protected routes.
