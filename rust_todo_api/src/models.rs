@@ -32,6 +32,11 @@ pub struct MessageResponse {
 }
 
 #[derive(Serialize, ToSchema)]
+pub struct ErrorResponse {
+    pub error: String,
+}
+
+#[derive(Serialize, ToSchema)]
 pub struct TokenResponse {
     pub token: String,
 }

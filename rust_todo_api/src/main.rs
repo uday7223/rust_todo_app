@@ -1,5 +1,6 @@
 mod auth;
 mod db;
+mod error;
 mod models;
 mod routes;
 
@@ -16,8 +17,8 @@ use utoipa_swagger_ui::SwaggerUi;
 use crate::auth::auth_middleware;
 use crate::db::connect_db;
 use crate::models::{
-    CreateTodoReq, CreateTodoResponse, LoginReq, MessageResponse, RegisterReq, TodoResponse,
-    TokenResponse, UpdateTodoReq,
+    CreateTodoReq, CreateTodoResponse, ErrorResponse, LoginReq, MessageResponse, RegisterReq,
+    TodoResponse, TokenResponse, UpdateTodoReq,
 };
 use crate::routes::{create_todo, delete_todo, list_todos, login, register, update_todo};
 
@@ -54,6 +55,7 @@ impl Modify for SecurityAddon {
             CreateTodoReq,
             UpdateTodoReq,
             MessageResponse,
+            ErrorResponse,
             TokenResponse,
             CreateTodoResponse,
             TodoResponse
