@@ -5,13 +5,25 @@ use axum::{
     Extension,
     Json,
 };
-use serde_json::json;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
 use crate::auth::{generate_jwt, hash_password, verify_password};
-use crate::models::{CreateTodoReq, LoginReq, MessageResponse, RegisterReq, TodoResponse};
+use crate::models::{
+    CreateTodoReq, CreateTodoResponse, LoginReq, MessageResponse, RegisterReq, TodoResponse,
+    TokenResponse,
+};
 
+#[utoipa::path(
+    post,
+    path = "/register",
+    request_body = RegisterReq,
+    tag = "auth",
+    responses(
+        (status = 200, description = "User registered", body = MessageResponse),
+        (status = 400, description = "User exists")
+    )
+)]
 pub async fn register(
     State(pool): State<PgPool>,
     Json(payload): Json<RegisterReq>,
@@ -35,6 +47,16 @@ pub async fn register(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/login",
+    request_body = LoginReq,
+    tag = "auth",
+    responses(
+        (status = 200, description = "Login successful", body = TokenResponse),
+        (status = 401, description = "Invalid credentials")
+    )
+)]
 pub async fn login(
     State(pool): State<PgPool>,
     Json(payload): Json<LoginReq>,
@@ -50,13 +72,24 @@ pub async fn login(
         let password_hash: String = user.try_get("password_hash").unwrap();
         if verify_password(&password_hash, &payload.password) {
             let token = generate_jwt(user_id);
-            return Json(json!({ "token": token })).into_response();
+            return Json(TokenResponse { token }).into_response();
         }
     }
 
     (StatusCode::UNAUTHORIZED, "Invalid credentials").into_response()
 }
 
+#[utoipa::path(
+    post,
+    path = "/todos",
+    request_body = CreateTodoReq,
+    tag = "todos",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Todo created", body = CreateTodoResponse),
+        (status = 401, description = "Unauthorized")
+    )
+)]
 pub async fn create_todo(
     State(pool): State<PgPool>,
     Extension(user_id): Extension<Uuid>,
@@ -72,9 +105,19 @@ pub async fn create_todo(
         .await
         .unwrap();
 
-    Json(json!({ "id": id }))
+    Json(CreateTodoResponse { id })
 }
 
+#[utoipa::path(
+    get,
+    path = "/todos",
+    tag = "todos",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "List of todos", body = [TodoResponse]),
+        (status = 401, description = "Unauthorized")
+    )
+)]
 pub async fn list_todos(
     State(pool): State<PgPool>,
     Extension(user_id): Extension<Uuid>,
