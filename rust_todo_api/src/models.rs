@@ -20,6 +20,12 @@ pub struct CreateTodoReq {
     pub title: String,
 }
 
+#[derive(Deserialize, ToSchema)]
+pub struct UpdateTodoReq {
+    pub title: String,
+    pub completed: bool,
+}
+
 #[derive(Serialize, ToSchema)]
 pub struct MessageResponse {
     pub message: String,

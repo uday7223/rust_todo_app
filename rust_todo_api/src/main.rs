@@ -5,7 +5,7 @@ mod routes;
 
 use axum::{
     middleware,
-    routing::post,
+    routing::{delete, post, put},
     Router,
 };
 use tower_http::cors::CorsLayer;
@@ -17,9 +17,9 @@ use crate::auth::auth_middleware;
 use crate::db::connect_db;
 use crate::models::{
     CreateTodoReq, CreateTodoResponse, LoginReq, MessageResponse, RegisterReq, TodoResponse,
-    TokenResponse,
+    TokenResponse, UpdateTodoReq,
 };
-use crate::routes::{create_todo, list_todos, login, register};
+use crate::routes::{create_todo, delete_todo, list_todos, login, register, update_todo};
 
 struct SecurityAddon;
 
@@ -43,13 +43,16 @@ impl Modify for SecurityAddon {
         routes::register,
         routes::login,
         routes::create_todo,
-        routes::list_todos
+        routes::list_todos,
+        routes::update_todo,
+        routes::delete_todo
     ),
     components(
         schemas(
             RegisterReq,
             LoginReq,
             CreateTodoReq,
+            UpdateTodoReq,
             MessageResponse,
             TokenResponse,
             CreateTodoResponse,
@@ -72,6 +75,7 @@ async fn main() {
 
     let protected_routes = Router::new()
         .route("/", post(create_todo).get(list_todos))
+        .route("/:id", put(update_todo).delete(delete_todo))
         .route_layer(middleware::from_fn(auth_middleware));
 
     let app = Router::new()

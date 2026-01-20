@@ -1,5 +1,5 @@
 use axum::{
-    extract::State,
+    extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
     Extension,
@@ -11,7 +11,7 @@ use uuid::Uuid;
 use crate::auth::{generate_jwt, hash_password, verify_password};
 use crate::models::{
     CreateTodoReq, CreateTodoResponse, LoginReq, MessageResponse, RegisterReq, TodoResponse,
-    TokenResponse,
+    TokenResponse, UpdateTodoReq,
 };
 
 #[utoipa::path(
@@ -139,4 +139,85 @@ pub async fn list_todos(
         .collect();
 
     Json(response)
+}
+
+#[utoipa::path(
+    put,
+    path = "/todos/{id}",
+    request_body = UpdateTodoReq,
+    params(
+        ("id" = Uuid, Path, description = "Todo id")
+    ),
+    tag = "todos",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Todo updated", body = TodoResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Todo not found")
+    )
+)]
+pub async fn update_todo(
+    State(pool): State<PgPool>,
+    Extension(user_id): Extension<Uuid>,
+    Path(todo_id): Path<Uuid>,
+    Json(payload): Json<UpdateTodoReq>,
+) -> impl IntoResponse {
+    let row = sqlx::query(
+        "UPDATE todos SET title = $1, completed = $2 WHERE id = $3 AND user_id = $4 RETURNING id, title, completed, created_at",
+    )
+    .bind(payload.title)
+    .bind(payload.completed)
+    .bind(todo_id)
+    .bind(user_id)
+    .fetch_optional(&pool)
+    .await
+    .unwrap();
+
+    let todo = match row {
+        Some(row) => TodoResponse {
+            id: row.try_get("id").unwrap(),
+            title: row.try_get("title").unwrap(),
+            completed: row.try_get("completed").unwrap(),
+            created_at: row.try_get("created_at").unwrap(),
+        },
+        None => return (StatusCode::NOT_FOUND, "Todo not found").into_response(),
+    };
+
+    Json(todo).into_response()
+}
+
+#[utoipa::path(
+    delete,
+    path = "/todos/{id}",
+    params(
+        ("id" = Uuid, Path, description = "Todo id")
+    ),
+    tag = "todos",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Todo deleted", body = MessageResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Todo not found")
+    )
+)]
+pub async fn delete_todo(
+    State(pool): State<PgPool>,
+    Extension(user_id): Extension<Uuid>,
+    Path(todo_id): Path<Uuid>,
+) -> impl IntoResponse {
+    let result = sqlx::query("DELETE FROM todos WHERE id = $1 AND user_id = $2")
+        .bind(todo_id)
+        .bind(user_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    if result.rows_affected() == 0 {
+        return (StatusCode::NOT_FOUND, "Todo not found").into_response();
+    }
+
+    Json(MessageResponse {
+        message: "Todo deleted".to_string(),
+    })
+    .into_response()
 }
