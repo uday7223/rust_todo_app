@@ -15,32 +15,25 @@ todos.
 ```
 src/
   main.rs    // app startup + router wiring
-  db.rs      // database connection pool
+  db.rs      // database connection pool + migrations
   auth.rs    // password hashing + JWT + auth middleware
   models.rs  // request/response DTOs
   routes.rs  // HTTP handlers
+  error.rs   // custom error types + JSON error responses
+migrations/
+  20240101000000_create_users.sql
+  20240101000001_create_todos.sql
 ```
 
 ## Setup
 
-1) Create database and tables
+1) Create the database in pgAdmin (or psql):
 
 ```sql
-CREATE TABLE users (
-    id UUID PRIMARY KEY,
-    email TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
-CREATE TABLE todos (
-    id UUID PRIMARY KEY,
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    title TEXT NOT NULL,
-    completed BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT NOW()
-);
+CREATE DATABASE rust_todo;
 ```
+
+Tables are created automatically via migrations when the server starts.
 
 2) Create `.env`
 
@@ -84,6 +77,11 @@ Protected routes are nested under `/todos` and wrapped in the JWT middleware.
 
 ### `src/db.rs`
 - Defines `connect_db()` which builds a SQLx pool.
+- Runs migrations automatically on startup using `sqlx::migrate!`.
+
+### `src/error.rs`
+- Defines `AppError` enum for consistent JSON error responses.
+- Validation errors, auth errors, and DB errors all return clean JSON.
 
 ### `src/auth.rs`
 - `hash_password()` and `verify_password()` using Argon2
@@ -103,6 +101,8 @@ Handlers for:
 - `POST /login`
 - `POST /todos` (protected)
 - `GET /todos` (protected)
+- `PUT /todos/:id` (protected)
+- `DELETE /todos/:id` (protected)
 
 ## Endpoints
 
@@ -158,12 +158,42 @@ is nested under a router that uses `auth_middleware`.
 This project uses `sqlx::query` (runtime validation), so compile-time DB access
 is not required.
 
+## Migrations
+
+Migrations run automatically when the server starts. SQLx tracks which migrations
+have been applied in a `_sqlx_migrations` table.
+
+### Adding a new migration
+
+1) Create a new file in `migrations/` with timestamp prefix:
+
+```
+migrations/20240615120000_add_due_date.sql
+```
+
+2) Write your SQL:
+
+```sql
+ALTER TABLE todos ADD COLUMN due_date TIMESTAMP;
+```
+
+3) Restart the server — the migration runs automatically.
+
+### Manual migration (optional)
+
+If you prefer running migrations manually:
+
+```
+cargo install sqlx-cli
+sqlx migrate run
+```
+
 ## Next Steps (Optional)
 
-- Add update and delete todo endpoints
-- Add input validation (email format, password length)
 - Add refresh tokens
-- Use SQLx migrations and `sqlx::migrate!`
+- Add pagination & filters for todos
+- Add role-based access (admin/user)
+- Add unit + integration tests
 
 ## Swagger UI
 
